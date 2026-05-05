@@ -1,6 +1,6 @@
+import { createAuthClient } from 'better-auth/react'
 import { createContext, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { supabase } from './supabaseClient'
 import { getProfile } from './lib/programQueries'
 import NavBar from './components/NavBar'
 import Dashboard from './pages/Dashboard'
@@ -9,43 +9,46 @@ import Progress from './pages/Progress'
 import Nutrition from './pages/Nutrition'
 import Settings from './pages/Settings'
 
+export const authClient = createAuthClient({ baseURL: window.location.origin })
+
 // ── Auth Context ──────────────────────────────────────────────────────────────
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
 
 function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { data: session, isPending } = authClient.useSession()
+  const user = session?.user ?? null
 
-  async function loadProfile(userId) {
+  const [profile, setProfile]             = useState(null)
+  const [profileLoading, setProfileLoading] = useState(true)
+
+  async function loadProfile() {
     try {
-      const p = await getProfile(userId)
+      const p = await getProfile()
       setProfile(p)
     } catch {
       setProfile(null)
+    } finally {
+      setProfileLoading(false)
     }
   }
 
   async function refreshProfile() {
-    if (user) await loadProfile(user.id)
+    await loadProfile()
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) loadProfile(session.user.id).finally(() => setLoading(false))
-      else setLoading(false)
-    })
+    if (isPending) return
+    if (user) {
+      loadProfile()
+    } else {
+      setProfile(null)
+      setProfileLoading(false)
+    }
+  }, [user?.id, isPending])
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) loadProfile(session.user.id)
-      else setProfile(null)
-    })
-    return () => subscription.unsubscribe()
-  }, [])
+  const loading = isPending || (!!user && profileLoading)
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, refreshProfile }}>
@@ -87,9 +90,9 @@ function LoginPage() {
 
   async function signInWithGoogle() {
     setLoading(true)
-    await supabase.auth.signInWithOAuth({
+    await authClient.signIn.social({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      callbackURL: window.location.origin,
     })
   }
 

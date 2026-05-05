@@ -1,0 +1,14 @@
+{
+  "name": "bombo-gym-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --env-file=../.env --watch index.js"
+  },
+  "dependencies": {
+    "better-auth": "^1",
+    "express": "^4",
+    "pg": "^8"
+  }
+}

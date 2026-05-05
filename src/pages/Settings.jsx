@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../App'
 import { upsertProfile, getSupplements, upsertSupplement, deleteSupplement } from '../lib/programQueries'
-import { supabase } from '../supabaseClient'
+import { authClient } from '../App'
 
 const DEFAULT_SUPPLEMENTS = [
   { name: 'Creatine Monohydrate', dose: '5g', frequency: 'Daily' },
@@ -88,7 +88,7 @@ export default function Settings() {
   }
 
   async function signOut() {
-    await supabase.auth.signOut()
+    await authClient.signOut()
   }
 
   // Height display helper (inches → ft'in")
