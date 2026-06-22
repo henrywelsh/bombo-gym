@@ -1,154 +1,144 @@
 # Deploy
 
-Bombo Gym deploys as a single Docker image (Vite frontend baked in, served by Express) plus a Postgres container, with Caddy on the host handling TLS.
+Bombo Gym runs on **Vercel** (static Vite SPA on the CDN + one serverless function that
+wraps the Express API) backed by **Supabase Postgres**. There is no VM, Docker, or Caddy —
+the app is stateless and scales to zero.
 
 ## Architecture
 
 ```
-Internet ── HTTPS ──> Caddy (host) ── HTTP ──> app:3000 (container) ──> db:5432 (container)
+Browser ── HTTPS ──> Vercel CDN (dist/ static SPA)
+                         │  /api/*  (vercel.json rewrite)
+                         ▼
+              Serverless function  api/index.js  ── the whole Express app
+                         │  pg Pool (max:1, TLS)
+                         ▼
+              Supabase Postgres  (transaction pooler :6543)
+                         ▲
+                         │  direct :5432, manual / CI only
+              npm run db:migrate
 ```
 
-- `app` container binds to `127.0.0.1:3000` only — never exposed publicly
-- Caddy terminates TLS and reverse-proxies to the app
-- Postgres data lives in the `postgres_data` named volume
+The SPA and `/api/*` share one origin, so the better-auth session cookie works without CORS
+config. Migrations never run inside the function — apply them with `npm run db:migrate`.
 
-## Prerequisites on the VM
+## 1. Create the Supabase project
 
-- Docker + Docker Compose plugin
-- Caddy installed and running as a system service
-- A DNS A/AAAA record pointing your domain at the VM
-- Ports 80 and 443 open
-
-## 1. Clone the repo on the VM
-
-```bash
-git clone <repo-url> /opt/bombo-gym
-cd /opt/bombo-gym
-```
+1. Create a project at <https://supabase.com>. Pick a strong DB password.
+2. **Project → Settings → Database → Connection string** gives you two URLs you need:
+   - **Transaction pooler** (port `6543`) → `DATABASE_URL` (used by the app on Vercel).
+   - **Direct connection** (port `5432`) → `DATABASE_URL_DIRECT` (used by migrations).
+3. Nothing else to configure here — the app owns its own schema via the migration files in
+   `server/migrations/`.
 
 ## 2. Set up Google OAuth for production
 
 In Google Cloud Console, add the production redirect URI to your OAuth client:
 
 ```
-https://gym.example.com/api/auth/callback/google
+https://<your-app>.vercel.app/api/auth/callback/google
 ```
 
-(Replace `gym.example.com` with your domain. You can keep the localhost URI on the same client for dev work.)
+Keep `http://localhost:3000/api/auth/callback/google` alongside it for local `vercel dev`.
 
-## 3. Configure `.env`
+## 3. Import the repo into Vercel
 
-Create `.env` at the project root:
+1. `npm i -g vercel` (or use the dashboard "Add New → Project" and import from Git).
+2. From the repo root: `vercel link` (or `vercel` to create + link in one go).
+3. Vercel auto-detects Vite. `vercel.json` already pins the build (`npm run build`),
+   output (`dist`), and the rewrites that send `/api/*` to the function and everything else
+   to `index.html` (SPA history fallback).
+
+## 4. Configure environment variables
+
+Set these in **Vercel → Project → Settings → Environment Variables** (Production, and
+Preview if you use it):
 
 ```
-POSTGRES_DB=bombo_gym
-POSTGRES_USERNAME=bombo
-POSTGRES_PASSWORD=<strong-random-password>
-POSTGRES_PORT=5432
-
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-
-BETTER_AUTH_SECRET=<openssl rand -hex 32>
-
-APP_URL=https://gym.example.com
+DATABASE_URL          # Supabase transaction pooler (:6543)
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+BETTER_AUTH_SECRET    # openssl rand -hex 32
+ADMIN_EMAIL           # Google account allowed to edit the shared challenge
+APP_URL               # https://<your-app>.vercel.app  (no trailing slash)
 ```
 
-`docker-compose.yml` interpolates these into both the `db` and `app` containers. The app builds `DATABASE_URL` from the Postgres parts internally.
+`DATABASE_URL_DIRECT` is only needed wherever you run `db:migrate` (your machine or CI), not
+in the Vercel runtime.
 
-Lock down permissions:
+## 5. Run migrations
+
+Migrations are applied out-of-band against the **direct** connection. Locally:
 
 ```bash
-chmod 600 .env
+cp .env.example .env        # fill in DATABASE_URL_DIRECT + the rest
+npm install
+npm run db:migrate          # applies 001…005, tracked in the _migrations table
 ```
 
-## 4. Configure Caddy
+Re-run after every deploy that adds a migration file. (Or wire it into CI as a post-deploy
+step against `DATABASE_URL_DIRECT`.)
 
-Edit `Caddyfile` to use your domain (the repo ships with `gym.example.com` as a placeholder):
-
-```
-gym.example.com {
-    reverse_proxy localhost:3000
-
-    @immutable {
-        path /assets/*
-    }
-    header @immutable Cache-Control "public, max-age=31536000, immutable"
-}
-```
-
-Install it system-wide:
+## 6. Deploy
 
 ```bash
-sudo cp Caddyfile /etc/caddy/Caddyfile
-sudo systemctl reload caddy
+vercel --prod
 ```
 
-Caddy will request and renew Let's Encrypt certificates automatically.
+This builds the SPA, uploads `dist/` to the CDN, and deploys `api/index.js` as a function.
 
-## 5. Build and start
+## 7. Verify
 
 ```bash
-docker compose up --build -d
+curl -I https://<your-app>.vercel.app            # 200, SPA HTML
+curl -I https://<your-app>.vercel.app/api/auth/session   # 200 from better-auth
 ```
 
-This will:
-1. Build the multi-stage image (Vite frontend → Node runtime with the server)
-2. Start Postgres and wait for the healthcheck
-3. Start the app — which runs pending migrations on boot and then listens on `:3000`
-
-Check logs:
-
-```bash
-docker compose logs -f app
-docker compose logs -f db
-```
-
-## 6. Verify
-
-```bash
-curl -I https://gym.example.com           # 200 from the SPA
-curl -I https://gym.example.com/api/auth/session   # 200 from better-auth
-```
-
-Open the site in a browser, sign in with Google, and you should land on `/settings` for first-time profile setup.
+Open the site, sign in with Google end-to-end, log reps on Today, and confirm the session
+cookie is set and data persists across reloads. In the Supabase SQL editor, confirm
+`_migrations` has 5 rows and the `"user"` / `daily_progress` / `workout_*` tables exist.
 
 ## Updating
 
 ```bash
-cd /opt/bombo-gym
-git pull
-docker compose up --build -d
+git push           # if the Vercel Git integration is on, this auto-deploys
+# or
+vercel --prod      # manual deploy
 ```
 
-Migrations in `server/migrations/` apply automatically on container start. They are tracked in the `_migrations` table — never edit a migration that has already run; add a new file with the next number.
+If the push includes a new file in `server/migrations/`, run `npm run db:migrate` against
+`DATABASE_URL_DIRECT`. Never edit a migration that has already run — add the next-numbered
+file. The list of files to apply lives in `server/migrate.js`.
 
 ## Backups
 
-Postgres data lives in the `postgres_data` Docker volume. Snapshot it on a schedule:
+Supabase takes automatic daily backups (retention depends on plan); restore from
+**Project → Database → Backups**. For an off-platform copy, `pg_dump` against the direct
+connection:
 
 ```bash
-docker compose exec -T db pg_dump -U "$POSTGRES_USERNAME" "$POSTGRES_DB" \
-  | gzip > "backup-$(date +%F).sql.gz"
-```
-
-Wire that into a cron job and ship the file off-host.
-
-Restore:
-
-```bash
-gunzip -c backup-YYYY-MM-DD.sql.gz \
-  | docker compose exec -T db psql -U "$POSTGRES_USERNAME" "$POSTGRES_DB"
+pg_dump "$DATABASE_URL_DIRECT" | gzip > bombo-gym-$(date +%F).sql.gz
 ```
 
 ## Troubleshooting
 
-- **502 from Caddy** — app container isn't up. `docker compose ps` and check `logs app`.
-- **OAuth callback fails with `redirect_uri_mismatch`** — the URI in Google Cloud must match `${APP_URL}/api/auth/callback/google` exactly.
-- **Session cookie not set** — `APP_URL` must be the actual public URL (https, no trailing slash). better-auth derives cookie domain and CSRF from it.
-- **Migrations stuck** — open a psql shell (`docker compose exec db psql -U ...`) and inspect the `_migrations` table. Delete a row to force a re-run on next boot.
-- **Port 3000 reachable from the internet** — `docker-compose.yml` binds to `127.0.0.1:3000`. If yours doesn't, fix that before going live.
+- **500s with connection / "too many clients" errors** — make sure `DATABASE_URL` is the
+  **transaction pooler** (:6543), not the direct connection. The pool is capped at `max:1`
+  per instance in `server/db.js`.
+- **better-auth errors mentioning prepared statements** — the transaction pooler disallows
+  some session-level features. Switch `DATABASE_URL` to the Supabase **session pooler** and
+  redeploy.
+- **`redirect_uri_mismatch`** — the Google Cloud URI must equal
+  `${APP_URL}/api/auth/callback/google` exactly.
+- **Session cookie not set** — `APP_URL` must be the public https URL with no trailing slash;
+  better-auth derives the cookie domain and CSRF origin from it.
+- **TLS / self-signed cert errors connecting to Supabase** — `server/db.js` enables TLS for
+  non-localhost hosts; confirm you're not pointing `DATABASE_URL` at `localhost`.
+- **Migrations stuck** — inspect the `_migrations` table via the Supabase SQL editor; delete
+  a row to force that file to re-run on the next `db:migrate`.
 
 ## Rollback
 
-The image is rebuilt from git on every deploy, so rollback is a `git checkout` of the previous commit followed by `docker compose up --build -d`. There's no image registry or tagging strategy — keep that in mind if you need a faster rollback path.
+Use the Vercel dashboard (**Deployments → ⋯ → Promote to Production** on a previous
+deployment) for an instant rollback of the app. Schema rollbacks are manual — write a new
+migration that reverses the change.

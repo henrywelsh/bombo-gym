@@ -4,15 +4,15 @@ A shared daily-challenge tracker with a private workout log. Everyone works towa
 
 ## What's in here
 
-React 18 SPA (Vite + Tailwind) on top of an Express API with better-auth for Google OAuth and PostgreSQL for storage. Frontend and backend live side by side and ship as a single Docker image.
+React 18 SPA (Vite + Tailwind) on top of an Express API with better-auth for Google OAuth and PostgreSQL for storage. It deploys serverlessly: the SPA on Vercel's CDN and the Express API as a single Vercel function, backed by Supabase Postgres.
 
 ```
 src/                React SPA — pages, components, API client
-server/             Express API, auth, migrations, route handlers
+server/             Express API (app.js exports it), auth, migrations, routes
 server/migrations/  SQL schema (001) and seed data (002)
-Dockerfile          Multi-stage build: Vite → Node runtime
-docker-compose.yml  App + Postgres for production
-Caddyfile          TLS reverse proxy for the VM
+api/index.js        Vercel serverless function — exports the Express app
+scripts/migrate.js  `npm run db:migrate` — applies migrations out of runtime
+vercel.json         build config + /api and SPA rewrites
 ```
 
 ## Pages
@@ -24,7 +24,7 @@ Caddyfile          TLS reverse proxy for the VM
 ## Documentation
 
 - [QUICKSTART.md](QUICKSTART.md) — get a dev environment running
-- [DEPLOY.md](DEPLOY.md) — deploy to a VM with Docker + Caddy
+- [DEPLOY.md](DEPLOY.md) — deploy to Vercel + Supabase
 - [CLAUDE.md](CLAUDE.md) — architecture notes for contributors and Claude Code
 
 ## Tech stack
@@ -32,8 +32,8 @@ Caddyfile          TLS reverse proxy for the VM
 - React 18, React Router 6, Recharts, Tailwind CSS
 - Vite 8 (dev server + production build)
 - Express 4, better-auth, raw `pg`
-- PostgreSQL 16
-- Docker Compose, Caddy (TLS)
+- Supabase Postgres
+- Vercel (static SPA + serverless function)
 
 No tests, linter, or type checker are configured.
 

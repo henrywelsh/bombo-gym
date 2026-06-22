@@ -1,90 +1,84 @@
 # Quickstart
 
-Local development runs entirely in Docker — Postgres, the Express API, and the Vite dev server all live in containers with hot reload. You don't need Node installed on the host.
+Local development uses **`vercel dev`** — it serves the Vite SPA and the `/api/*`
+serverless function together, mirroring production. The database is a **Supabase** project
+(use a separate dev project, or a [branch](https://supabase.com/docs/guides/platform/branching)).
 
 ## Prerequisites
 
-- Docker Desktop (or Docker Engine + Compose plugin)
+- Node 22+ and the Vercel CLI (`npm i -g vercel`)
+- A Supabase project (free tier is fine)
 - A Google Cloud project with OAuth credentials
 
 ## 1. Configure Google OAuth
 
-In [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials, create an **OAuth client ID** of type *Web application* and add this authorized redirect URI:
+In [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials,
+create an **OAuth client ID** of type *Web application* and add this authorized redirect URI:
 
 ```
-http://localhost:5173/api/auth/callback/google
+http://localhost:3000/api/auth/callback/google
 ```
 
-Vite proxies `/api/*` to the API container, so the browser-facing URL is on port 5173 even though the API itself listens on 3000.
+`vercel dev` serves both the app and the API on port 3000, so the redirect stays on 3000.
 
 ## 2. Configure environment
 
-Copy `.env.example` to `.env` at the project root and fill in the OAuth + secret values:
+Copy `.env.example` to `.env` and fill it in:
 
 ```
-POSTGRES_DB=bombo_gym
-POSTGRES_USERNAME=bombo
-POSTGRES_PASSWORD=changeme
-POSTGRES_HOST=localhost
-POSTGRES_PORT=54329                                 # non-default to avoid local clashes
-
+DATABASE_URL=...            # Supabase connection string (direct is fine locally)
+DATABASE_URL_DIRECT=...     # Supabase direct connection (:5432) for migrations
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-
-BETTER_AUTH_SECRET=...                              # openssl rand -hex 32
-BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:5173
-
-APP_URL=http://localhost:5173
+BETTER_AUTH_SECRET=...      # openssl rand -hex 32
+ADMIN_EMAIL=you@example.com
+APP_URL=http://localhost:3000
 ```
 
-The same `.env` is read by both the local and prod compose files — compose interpolates `${VAR}` references at startup. The `POSTGRES_HOST`/`POSTGRES_PORT` values aren't used inside the local stack (containers reach the db at `db:5432`) but are kept for parity with prod and host-side tools.
+Both connection strings come from **Supabase → Settings → Database → Connection string**.
 
-## 3. Bring up the stack
+## 3. Install deps and run migrations
 
 ```bash
-docker compose -f docker-compose-lcl.yml up
+npm install
+npm run db:migrate          # applies 001…005 against DATABASE_URL_DIRECT
 ```
 
-First boot is slow (image pulls + `npm install` in both Node containers). Subsequent boots are fast — `node_modules` lives in named volumes.
+`db:migrate` is idempotent — it tracks applied files in the `_migrations` table and skips
+ones already run.
 
-What you'll see come online:
-- `db` — Postgres 16 on `localhost:${POSTGRES_PORT}` (54329 by default)
-- `api` — Express on `localhost:3000`, runs migrations on startup, restarts on file changes via `node --watch`
-- `web` — Vite dev server on `localhost:5173`, HMR for the React app
+## 4. Run the app
 
-Open <http://localhost:5173>, sign in with Google, and you'll land on `/settings` for first-time profile setup.
+```bash
+vercel dev
+```
+
+First run prompts you to link a Vercel project (pick or create one). Then open
+<http://localhost:3000> and sign in with Google.
+
+> Fallback without the Vercel CLI: run the API and SPA separately —
+> `node server/index.js` (serves `/api` on :3000 and applies migrations on boot) plus
+> `npm run dev` (Vite on :5173, proxies `/api` to :3000 per `vite.config.js`). With this
+> path set `APP_URL=http://localhost:5173` and use the `:5173` Google redirect URI.
 
 ## Common workflows
 
-**Stop the stack:** `Ctrl-C`, or `docker compose -f docker-compose-lcl.yml down` to also remove containers.
+**Reset the database:** drop and re-create the schema in the Supabase SQL editor (or use a
+fresh branch), then `npm run db:migrate` again.
 
-**Reset the database:** `docker compose -f docker-compose-lcl.yml down -v` — the `-v` drops the `postgres_data_lcl` volume so migrations re-run from scratch on next boot.
+**Open a SQL shell:** use the Supabase dashboard SQL editor, or `psql "$DATABASE_URL_DIRECT"`.
 
-**Reinstall deps:** delete the `api_node_modules` or `web_node_modules` volume:
-```bash
-docker compose -f docker-compose-lcl.yml down
-docker volume rm bombo-gym_api_node_modules bombo-gym_web_node_modules
-docker compose -f docker-compose-lcl.yml up
-```
-
-**Open a psql shell** (from inside the db container, so port doesn't matter):
-```bash
-docker compose -f docker-compose-lcl.yml exec db psql -U bombo bombo_gym
-```
-
-**Connect from the host** (e.g. a GUI client) — use `localhost:${POSTGRES_PORT}` (54329 by default).
-
-**Tail logs for one service:**
-```bash
-docker compose -f docker-compose-lcl.yml logs -f api
-```
+**Add a migration:** drop a new `NNN_*.sql` file in `server/migrations/`, add it to the
+`files` list in `server/migrate.js`, then `npm run db:migrate`.
 
 ## Common gotchas
 
-- **OAuth redirect mismatch** — the URI in Google Cloud must match `http://localhost:5173/api/auth/callback/google` exactly. Not `:3000`. Not `https`.
-- **Port already in use** — something else is on 3000, 5173, or whatever you set `POSTGRES_PORT` to. `lsof -i :5173` and shut it down, or change the port in `.env`.
-- **HMR not picking up file changes** — the local compose sets `CHOKIDAR_USEPOLLING=true` because bind-mount file events are flaky on WSL/Docker Desktop. If you're on native Linux you can drop that for snappier reloads.
-- **Migrations didn't apply** — check `docker compose -f docker-compose-lcl.yml logs api` on startup. Migration state lives in the `_migrations` table; delete a row to force a re-run.
+- **OAuth redirect mismatch** — the Google Cloud URI must match
+  `http://localhost:3000/api/auth/callback/google` exactly (or `:5173` on the fallback path).
+- **TLS error connecting to Supabase** — `server/db.js` enables TLS for non-localhost hosts;
+  make sure `DATABASE_URL` points at Supabase, not `localhost`.
+- **Migrations didn't apply** — inspect the `_migrations` table; delete a row to force a
+  re-run on the next `npm run db:migrate`.
 
 ## Project layout cheatsheet
 
@@ -95,17 +89,17 @@ src/
   lib/programQueries.js    all data functions called by pages
   lib/apiClient.js         fetch wrapper, sends credentials: 'include'
 server/
-  index.js                 entry point, mounts routes, runs migrations
+  app.js                   builds + exports the Express app (no listen)
+  index.js                 local-dev entry: runs migrations + app.listen
   auth.js                  better-auth config (Google provider)
   migrate.js               applies SQL files from migrations/
   middleware/requireAuth.js  resolves session → req.userId
-  routes/                  one file per domain (lookup is public)
-docker-compose-lcl.yml     local dev (db + api + web, all in containers)
-docker-compose.yml         production (db + baked-in app image)
+  routes/                  one file per domain
+api/index.js               Vercel function — exports the Express app
+scripts/migrate.js         `npm run db:migrate` entry (uses DATABASE_URL_DIRECT)
+vercel.json                build + /api and SPA rewrites
 ```
 
 ## Next steps
 
-- See [USER_GUIDE.md](USER_GUIDE.md) for what each page does
-- See [TESTING.md](TESTING.md) for a manual QA checklist
-- See [DEPLOY.md](DEPLOY.md) when you're ready to ship
+- See [DEPLOY.md](DEPLOY.md) when you're ready to ship to Vercel + Supabase
