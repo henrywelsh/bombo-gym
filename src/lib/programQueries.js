@@ -48,18 +48,32 @@ export async function getExercises() {
   return api.get('/api/exercises')
 }
 
-export async function addExercise(name) {
-  return api.post('/api/exercises', { name })
+export async function addExercise(name, metric) {
+  return api.post('/api/exercises', { name, metric })
 }
 
-export async function getWorkouts() {
-  return api.get('/api/workouts')
+// Reusable plans (templates)
+export async function getPlans() {
+  return api.get('/api/plans')
 }
 
-export async function createWorkout(workout) {
-  return api.post('/api/workouts', workout)
+export async function createPlan(plan) {
+  return api.post('/api/plans', plan)
 }
 
-export async function deleteWorkout(id) {
-  return api.delete(`/api/workouts/${id}`)
+export async function deletePlan(id) {
+  return api.delete(`/api/plans/${id}`)
+}
+
+// Recorded sessions (performed instances)
+export async function getSessions() {
+  return api.get('/api/sessions')
+}
+
+export async function createSession(session) {
+  return api.post('/api/sessions', session)
+}
+
+export async function deleteSession(id) {
+  return api.delete(`/api/sessions/${id}`)
 }

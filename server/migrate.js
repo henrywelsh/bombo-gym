@@ -15,7 +15,7 @@ export async function runMigrations() {
       )
     `)
 
-    const files = ['001_base_schema.sql', '002_seed.sql', '003_workouts.sql']
+    const files = ['001_base_schema.sql', '002_seed.sql', '003_workouts.sql', '004_workout_plans.sql']
     for (const name of files) {
       const { rowCount } = await client.query(
         `SELECT 1 FROM _migrations WHERE name = $1`, [name]
