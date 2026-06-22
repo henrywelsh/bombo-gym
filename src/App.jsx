@@ -5,6 +5,7 @@ import NavBar from './components/NavBar'
 import Today from './pages/Today'
 import Board from './pages/Board'
 import Workouts from './pages/Workouts'
+import Benchmarks from './pages/Benchmarks'
 
 export const authClient = createAuthClient({ baseURL: window.location.origin })
 
@@ -91,6 +92,7 @@ function AppShell() {
           <Routes>
             <Route path="/"         element={<Today />} />
             <Route path="/workouts" element={<Workouts />} />
+            <Route path="/benchmark"  element={<Benchmarks />} />
             <Route path="/board"    element={<Board />} />
             <Route path="*"         element={<Navigate to="/" replace />} />
           </Routes>

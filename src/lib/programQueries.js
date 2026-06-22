@@ -77,3 +77,21 @@ export async function createSession(session) {
 export async function deleteSession(id) {
   return api.delete(`/api/sessions/${id}`)
 }
+
+// ── Monthly benchmarks / check-in (public) ──────────────────────────────────────
+
+export async function getBenchmarks() {
+  return api.get('/api/benchmarks')
+}
+
+export async function recordBenchmark(exerciseId, month, value) {
+  return api.post('/api/benchmarks/results', { exercise_id: exerciseId, month, value })
+}
+
+export async function addBenchmarkExercise(exerciseId) {
+  return api.post('/api/benchmarks', { exercise_id: exerciseId })
+}
+
+export async function removeBenchmarkExercise(exerciseId) {
+  return api.delete(`/api/benchmarks/${exerciseId}`)
+}

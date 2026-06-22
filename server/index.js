@@ -11,6 +11,7 @@ import boardRoutes         from './routes/board.js'
 import exerciseRoutes      from './routes/exercises.js'
 import planRoutes          from './routes/plans.js'
 import sessionRoutes       from './routes/sessions.js'
+import benchmarkRoutes     from './routes/benchmarks.js'
 import { requireAuth }      from './middleware/requireAuth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -30,6 +31,7 @@ app.use('/api', requireAuth, boardRoutes)
 app.use('/api', requireAuth, exerciseRoutes)
 app.use('/api', requireAuth, planRoutes)
 app.use('/api', requireAuth, sessionRoutes)
+app.use('/api', requireAuth, benchmarkRoutes)
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.resolve(__dirname, '../dist')
