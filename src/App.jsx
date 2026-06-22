@@ -1,13 +1,9 @@
 import { createAuthClient } from 'better-auth/react'
-import { createContext, useContext, useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { getProfile } from './lib/programQueries'
+import { createContext, useContext, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import NavBar from './components/NavBar'
-import Dashboard from './pages/Dashboard'
-import LogSession from './pages/LogSession'
-import Progress from './pages/Progress'
-import Nutrition from './pages/Nutrition'
-import Settings from './pages/Settings'
+import Today from './pages/Today'
+import Board from './pages/Board'
 
 export const authClient = createAuthClient({ baseURL: window.location.origin })
 
@@ -20,38 +16,8 @@ function AuthProvider({ children }) {
   const { data: session, isPending } = authClient.useSession()
   const user = session?.user ?? null
 
-  const [profile, setProfile]             = useState(null)
-  const [profileLoading, setProfileLoading] = useState(true)
-
-  async function loadProfile() {
-    try {
-      const p = await getProfile()
-      setProfile(p)
-    } catch {
-      setProfile(null)
-    } finally {
-      setProfileLoading(false)
-    }
-  }
-
-  async function refreshProfile() {
-    await loadProfile()
-  }
-
-  useEffect(() => {
-    if (isPending) return
-    if (user) {
-      loadProfile()
-    } else {
-      setProfile(null)
-      setProfileLoading(false)
-    }
-  }, [user?.id, isPending])
-
-  const loading = isPending || (!!user && profileLoading)
-
   return (
-    <AuthContext.Provider value={{ user, profile, loading, refreshProfile }}>
+    <AuthContext.Provider value={{ user, loading: isPending }}>
       {children}
     </AuthContext.Provider>
   )
@@ -60,8 +26,7 @@ function AuthProvider({ children }) {
 // ── Auth Guard ────────────────────────────────────────────────────────────────
 
 function RequireAuth({ children }) {
-  const { user, profile, loading } = useAuth()
-  const location = useLocation()
+  const { user, loading } = useAuth()
 
   if (loading) {
     return (
@@ -73,11 +38,6 @@ function RequireAuth({ children }) {
 
   if (!user) {
     return <LoginPage />
-  }
-
-  // First-time user: redirect to Settings to complete profile
-  if (!profile?.program_start_date && location.pathname !== '/settings') {
-    return <Navigate to="/settings" replace />
   }
 
   return children
@@ -128,12 +88,9 @@ function AppShell() {
         <NavBar />
         <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6">
           <Routes>
-            <Route path="/"          element={<Dashboard />} />
-            <Route path="/log"       element={<LogSession />} />
-            <Route path="/progress"  element={<Progress />} />
-            <Route path="/nutrition" element={<Nutrition />} />
-            <Route path="/settings"  element={<Settings />} />
-            <Route path="*"          element={<Navigate to="/" replace />} />
+            <Route path="/"      element={<Today />} />
+            <Route path="/board" element={<Board />} />
+            <Route path="*"      element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>

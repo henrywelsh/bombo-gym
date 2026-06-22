@@ -33,6 +33,8 @@ POSTGRES_PORT=54329                # host-side port; inside the db container Pos
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
+ADMIN_EMAIL=                       # Google account allowed to edit the shared challenge
+
 BETTER_AUTH_SECRET=                # openssl rand -hex 32
 BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:5173
 
@@ -49,20 +51,19 @@ Google Cloud Console redirect URIs:
 
 React 18 SPA (JSX, no TypeScript) built with Vite, styled with Tailwind CSS. Backend is an Express server with better-auth for Google OAuth and raw `pg` queries to PostgreSQL.
 
-**Auth & routing** — `src/App.jsx` is the app shell. It exports `authClient` (better-auth React client) and provides `AuthContext` (user session, profile, `refreshProfile()`) via `AuthProvider`, which uses `authClient.useSession()`. A `RequireAuth` guard wraps all routes: unauthenticated users see the login page; authenticated users with no `program_start_date` are redirected to `/settings` for first-time setup. Login uses `authClient.signIn.social({ provider: 'google' })`.
+The app is a **shared daily challenge**: one global list of exercises with daily rep targets (`daily_exercises`, owner-locked — only `ADMIN_EMAIL` can edit), against which each user logs reps that accumulate into one row per user/day/exercise (`daily_progress`). A public board charts everyone's counts for the day and shows streaks (consecutive days a user hit every target).
 
-**Routes** — Five pages under `src/pages/`:
-- `/` → Dashboard (today's split, daily staples)
-- `/log` → LogSession (exercise logging with upsert)
-- `/progress` → Progress (Recharts graphs of strength & body weight)
-- `/nutrition` → Nutrition (meal planner, supplements, measurements)
-- `/settings` → Settings (profile, supplements, sign out)
+**Auth & routing** — `src/App.jsx` is the app shell. It exports `authClient` (better-auth React client) and provides `AuthContext` (`user`, `loading`) via `AuthProvider`, which uses `authClient.useSession()`. A `RequireAuth` guard wraps all routes: unauthenticated users see the login page, everyone else goes straight in (no profile/setup gate). Login uses `authClient.signIn.social({ provider: 'google' })`; sign-out lives in `NavBar`.
 
-**Frontend data layer** — `src/lib/programQueries.js` exports all data functions (same signatures as before). They call `src/lib/apiClient.js`, a thin `fetch` wrapper that always sends `credentials: 'include'` for the session cookie. All `userId` parameters in `programQueries.js` are ignored — the server derives identity from the session.
+**Routes** — Two pages under `src/pages/`:
+- `/` → Today (shared challenge, my `count / target` per exercise with quick-add buttons, my streak; the inline challenge editor renders only for the owner, gated on `GET /api/me`'s `isAdmin`)
+- `/board` → Board (Recharts grouped bar chart of every user's counts for the day + streak leaderboard)
 
-**Express server** (`server/`) — Entry point is `server/index.js`. Before `app.listen()`, it calls `runMigrations()` from `server/migrate.js`, which applies any pending SQL files from `server/migrations/` and tracks them in a `_migrations` table. Routes are split by domain: `server/routes/lookup.js` (public, no auth) and one file per user-data domain (all protected by `server/middleware/requireAuth.js`). better-auth owns all `/api/auth/*` traffic via `toNodeHandler(auth)` — this mount must come before `express.json()`.
+**Frontend data layer** — `src/lib/programQueries.js` exports the data functions (`getDailyExercises`, `addDailyExercise`, `updateDailyExercise`, `deleteDailyExercise`, `getTodayProgress`, `addReps`, `getBoard`). They call `src/lib/apiClient.js`, a thin `fetch` wrapper that always sends `credentials: 'include'` for the session cookie. The server derives identity from the session.
 
-**Database** — Schema is in `server/migrations/001_base_schema.sql`; seed data in `server/migrations/002_seed.sql`. The `"user"` table (better-auth's auth table) is pre-created in the schema migration so `profiles` can reference it. All user tables use `user_id TEXT` referencing `"user"(id)` — no RLS, authorization is enforced in route handlers via `WHERE user_id = req.userId`. The original Supabase schema in `supabase/` is kept for historical reference only.
+**Express server** (`server/`) — Entry point is `server/index.js`. Before `app.listen()`, it calls `runMigrations()` from `server/migrate.js`, which applies any pending SQL files from `server/migrations/` and tracks them in a `_migrations` table. Four routers, all behind `server/middleware/requireAuth.js` (which sets `req.userId`/`req.userEmail`): `routes/me.js` (`GET /me` → `{ email, isAdmin }`), `routes/dailyExercises.js` (GET open to any user; POST/PUT/DELETE gated by `server/middleware/requireAdmin.js`, which checks `req.userEmail` against `ADMIN_EMAIL`), `routes/progress.js` (my reps: GET today, POST upsert-increment), `routes/board.js` (everyone's counts for a day + computed streaks). better-auth owns all `/api/auth/*` traffic via `toNodeHandler(auth)` — this mount must come before `express.json()`.
+
+**Database** — Schema is in `server/migrations/001_base_schema.sql`; seed data in `server/migrations/002_seed.sql` (Pullups 30, Pushups 100). The `"user"` table (better-auth's) is pre-created in the schema migration. There is no `profiles` table — display name/avatar come from `"user".name`/`.image`. `daily_progress.user_id` references `"user"(id)`; the board reads across all users, while `/api/progress` writes are scoped to `req.userId`. Migrations were rewritten in place (no production data yet) — reset a local DB with `docker compose -f docker-compose-lcl.yml down -v`. The original Supabase schema in `supabase/` is kept for historical reference only.
 
 **Deployment** — `docker-compose.yml` is the prod stack: `db` (postgres:16-alpine) and `app` (multi-stage build via `Dockerfile`: Vite frontend baked into a Node runtime image that also serves the Express API). The app container binds to `127.0.0.1:3000` only; Caddy on the VM handles TLS and proxies to it. See `Caddyfile` for the Caddy config and `DEPLOY.md` for the full procedure. `docker-compose-lcl.yml` is the local-dev counterpart and uses raw `node:22-alpine` images with bind mounts instead of building.
 
@@ -73,6 +74,3 @@ React 18 SPA (JSX, no TypeScript) built with Vite, styled with Tailwind CSS. Bac
 - `README.md` — project overview and pointers to the rest of the docs
 - `QUICKSTART.md` — local-dev setup via `docker-compose-lcl.yml`
 - `DEPLOY.md` — VM deployment with Docker Compose + Caddy
-- `USER_GUIDE.md` — full feature walkthrough, program structure, and progression tables
-- `TESTING.md` — section-by-section QA guide (references Supabase; API endpoints have changed but feature behavior is identical)
-- `Lean Mass & Athletic Conditioning Program.pdf` — the source fitness program this app implements

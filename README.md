@@ -1,6 +1,6 @@
 # Bombo Gym
 
-A personal training tracker built around the *Lean Mass & Athletic Conditioning Program* — a 12-month kettlebell strength and conditioning plan. Bombo Gym tells you what to train each day, lets you log sets and meals, and graphs your progress over time.
+A shared daily-challenge tracker. Everyone works toward the same daily goal — a list of exercises with rep targets (e.g. 30 pullups, 100 pushups) that any user can edit. Log your reps through the day, watch a public board chart everyone's progress, and build a streak by completing the full goal day after day.
 
 ## What's in here
 
@@ -17,18 +17,13 @@ Caddyfile          TLS reverse proxy for the VM
 
 ## Pages
 
-- `/` — Dashboard: today's split, exercise cards with current targets, daily staples
-- `/log` — Log sets (upserts on `(user, exercise, date)`)
-- `/progress` — Recharts graphs of strength and body weight
-- `/nutrition` — Meal planner, supplements, body measurements
-- `/settings` — Profile, program start date, supplements, sign out
+- `/` — Today: the shared challenge, your `count / target` per exercise with quick-add buttons, your streak, and an inline editor for the shared exercise list
+- `/board` — Daily board: a grouped bar chart of every user's counts for the day plus a streak leaderboard
 
 ## Documentation
 
 - [QUICKSTART.md](QUICKSTART.md) — get a dev environment running
 - [DEPLOY.md](DEPLOY.md) — deploy to a VM with Docker + Caddy
-- [USER_GUIDE.md](USER_GUIDE.md) — end-user feature walkthrough
-- [TESTING.md](TESTING.md) — manual QA checklist
 - [CLAUDE.md](CLAUDE.md) — architecture notes for contributors and Claude Code
 
 ## Tech stack
