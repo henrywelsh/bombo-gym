@@ -1,6 +1,6 @@
 # Bombo Gym
 
-A shared daily-challenge tracker with a private workout log. Everyone works toward the same daily goal — a list of exercises with rep targets (e.g. 30 pullups, 100 pushups), editable by the owner. Log your reps through the day, watch a public board chart everyone's progress, and build a per-exercise streak by hitting each target day after day. Separately, keep your own workout history — build sessions from single exercises, supersets, and circuits.
+A shared daily-challenge tracker with a private workout log. Everyone works toward the same daily goal — a list of exercises with rep targets (e.g. 30 pullups, 100 pushups), editable by the owner. Log your reps through the day, watch a public leaderboard chart everyone's progress (one color per user), build a per-exercise streak by hitting each target day after day, and climb the standings by your per-exercise completion % (days you hit each target since you joined). Separately, keep your own private workout log: build reusable plans from single exercises, supersets, and circuits (each exercise tracks reps plus weight or duration), then record per-round actuals each time you do one.
 
 ## What's in here
 
@@ -18,8 +18,8 @@ Caddyfile          TLS reverse proxy for the VM
 ## Pages
 
 - `/` — Today: the shared challenge, your `count / target` per exercise with quick-add buttons, per-exercise streaks, and an inline editor for the shared exercise list (owner only)
-- `/workouts` — Workouts: build a private workout from single exercises, supersets, and circuits, then browse your history
-- `/board` — Daily board: a grouped bar chart of every user's counts for the day plus per-exercise streaks
+- `/workouts` — Workouts: build reusable plans (single exercises, supersets, circuits; reps + weight/duration targets), start a plan to record per-round actuals, and browse session history
+- `/board` — Leaderboard: a grouped bar chart by exercise (one color per user) plus standings with per-exercise completion % (days hit since joining) and streaks
 
 ## Documentation
 
