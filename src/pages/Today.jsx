@@ -11,7 +11,7 @@ export default function Today() {
   const { user } = useAuth()
   const [exercises, setExercises] = useState([])
   const [counts, setCounts]       = useState({})   // exercise_id -> count
-  const [streak, setStreak]       = useState(0)
+  const [streaks, setStreaks]     = useState({})   // exercise_id -> streak
   const [isAdmin, setIsAdmin]     = useState(false)
   const [loading, setLoading]     = useState(true)
   const [editing, setEditing]     = useState(false)
@@ -26,7 +26,7 @@ export default function Today() {
     setIsAdmin(me.isAdmin)
     setExercises(exs)
     setCounts(Object.fromEntries(prog.map(p => [p.exercise_id, p.count])))
-    setStreak(board.users.find(u => u.user_id === user.id)?.streak ?? 0)
+    setStreaks(board.users.find(u => u.user_id === user.id)?.streaks ?? {})
     setLoading(false)
   }
 
@@ -43,14 +43,7 @@ export default function Today() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Today's Challenge</h1>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-2xl">🔥</span>
-          <span className="font-bold text-amber-500">{streak}</span>
-          <span className="text-slate-400">day{streak === 1 ? '' : 's'}</span>
-        </div>
-      </div>
+      <h1 className="text-2xl font-bold text-white">Today's Challenge</h1>
 
       {allDone && (
         <div className="card bg-green-900/40 border border-green-700 text-green-300 text-sm font-medium">
@@ -70,7 +63,14 @@ export default function Today() {
           return (
             <div key={ex.id} className="card">
               <div className="flex items-baseline justify-between mb-2">
-                <h3 className="font-semibold text-white">{ex.name}</h3>
+                <div className="flex items-baseline gap-2">
+                  <h3 className="font-semibold text-white">{ex.name}</h3>
+                  {streaks[ex.id] > 0 && (
+                    <span className="text-xs text-amber-500" title={`${streaks[ex.id]}-day streak`}>
+                      🔥 {streaks[ex.id]}
+                    </span>
+                  )}
+                </div>
                 <span className={`text-sm font-medium ${done ? 'text-green-400' : 'text-slate-300'}`}>
                   {count} / {ex.target} {ex.unit}
                 </span>

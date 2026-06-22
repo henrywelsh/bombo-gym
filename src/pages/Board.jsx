@@ -65,18 +65,23 @@ export default function Board() {
             </p>
           </div>
 
-          {/* Leaderboard / streaks */}
+          {/* Per-exercise streaks */}
           <div className="card">
             <h2 className="font-semibold text-white mb-3">Streaks</h2>
             <ul className="divide-y divide-slate-700">
-              {[...users].sort((a, b) => b.streak - a.streak).map(u => (
+              {users.map(u => (
                 <li key={u.user_id} className="flex items-center gap-3 py-2">
                   {u.image
                     ? <img src={u.image} alt="" className="w-8 h-8 rounded-full" />
                     : <div className="w-8 h-8 rounded-full bg-slate-600" />}
                   <span className="flex-1 text-slate-200">{u.name || 'Anonymous'}</span>
-                  {u.completed && <span className="text-xs text-green-400">✓ done</span>}
-                  <span className="text-sm text-amber-500 font-medium">🔥 {u.streak}</span>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    {exercises.map(ex => (
+                      <span key={ex.id} className="text-xs text-slate-400">
+                        {ex.name} <span className="text-amber-500 font-medium">🔥 {u.streaks?.[ex.id] ?? 0}</span>
+                      </span>
+                    ))}
+                  </div>
                 </li>
               ))}
             </ul>

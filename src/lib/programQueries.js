@@ -41,3 +41,25 @@ export async function getBoard(date) {
   const qs = date ? `?date=${date}` : ''
   return api.get(`/api/board${qs}`)
 }
+
+// ── Workout tracker (private) ───────────────────────────────────────────────────
+
+export async function getExercises() {
+  return api.get('/api/exercises')
+}
+
+export async function addExercise(name) {
+  return api.post('/api/exercises', { name })
+}
+
+export async function getWorkouts() {
+  return api.get('/api/workouts')
+}
+
+export async function createWorkout(workout) {
+  return api.post('/api/workouts', workout)
+}
+
+export async function deleteWorkout(id) {
+  return api.delete(`/api/workouts/${id}`)
+}

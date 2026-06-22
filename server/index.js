@@ -8,6 +8,8 @@ import meRoutes            from './routes/me.js'
 import dailyExerciseRoutes from './routes/dailyExercises.js'
 import progressRoutes      from './routes/progress.js'
 import boardRoutes         from './routes/board.js'
+import exerciseRoutes      from './routes/exercises.js'
+import workoutRoutes       from './routes/workouts.js'
 import { requireAuth }      from './middleware/requireAuth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -24,6 +26,8 @@ app.use('/api', requireAuth, meRoutes)
 app.use('/api', requireAuth, dailyExerciseRoutes)
 app.use('/api', requireAuth, progressRoutes)
 app.use('/api', requireAuth, boardRoutes)
+app.use('/api', requireAuth, exerciseRoutes)
+app.use('/api', requireAuth, workoutRoutes)
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.resolve(__dirname, '../dist')

@@ -2,8 +2,9 @@ import { NavLink } from 'react-router-dom'
 import { authClient } from '../App'
 
 const links = [
-  { to: '/',      label: 'Today', icon: BoltIcon },
-  { to: '/board', label: 'Board', icon: ChartIcon },
+  { to: '/',         label: 'Today',    icon: BoltIcon },
+  { to: '/workouts', label: 'Workouts', icon: DumbbellIcon },
+  { to: '/board',    label: 'Board',    icon: ChartIcon },
 ]
 
 function signOut() {
@@ -75,6 +76,14 @@ function ChartIcon({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V9m4 10V5m4 14v-6M5 19h14" />
+    </svg>
+  )
+}
+
+function DumbbellIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 6.5l11 11M21 21l-1-1M3 3l1 1M18 22l4-4M2 6l4-4M7 17l-2.5 2.5a2.12 2.12 0 01-3-3L4 14M17 7l2.5-2.5a2.12 2.12 0 00-3-3L14 4" />
     </svg>
   )
 }

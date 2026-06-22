@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import NavBar from './components/NavBar'
 import Today from './pages/Today'
 import Board from './pages/Board'
+import Workouts from './pages/Workouts'
 
 export const authClient = createAuthClient({ baseURL: window.location.origin })
 
@@ -88,9 +89,10 @@ function AppShell() {
         <NavBar />
         <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6">
           <Routes>
-            <Route path="/"      element={<Today />} />
-            <Route path="/board" element={<Board />} />
-            <Route path="*"      element={<Navigate to="/" replace />} />
+            <Route path="/"         element={<Today />} />
+            <Route path="/workouts" element={<Workouts />} />
+            <Route path="/board"    element={<Board />} />
+            <Route path="*"         element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>
