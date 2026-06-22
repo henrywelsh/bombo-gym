@@ -15,7 +15,7 @@ Browser ── HTTPS ──> Vercel CDN (dist/ static SPA)
                          ▼
               Supabase Postgres  (transaction pooler :6543)
                          ▲
-                         │  direct :5432, manual / CI only
+                         │  session pooler :5432, manual / CI only
               npm run db:migrate
 ```
 
@@ -27,7 +27,11 @@ config. Migrations never run inside the function — apply them with `npm run db
 1. Create a project at <https://supabase.com>. Pick a strong DB password.
 2. **Project → Settings → Database → Connection string** gives you two URLs you need:
    - **Transaction pooler** (port `6543`) → `DATABASE_URL` (used by the app on Vercel).
-   - **Direct connection** (port `5432`) → `DATABASE_URL_DIRECT` (used by migrations).
+   - **Session pooler** (port `5432`) → `DATABASE_URL_DIRECT` (used by migrations).
+     Prefer this over the **Direct connection** (`db.<ref>.supabase.co:5432`): the
+     direct host is IPv6-only and fails with `ENETUNREACH` on IPv4-only networks
+     (e.g. WSL2), whereas the session pooler resolves over IPv4 and still gives a
+     real session for DDL and advisory locks.
 3. Nothing else to configure here — the app owns its own schema via the migration files in
    `server/migrations/`.
 
@@ -68,7 +72,7 @@ in the Vercel runtime.
 
 ## 5. Run migrations
 
-Migrations are applied out-of-band against the **direct** connection. Locally:
+Migrations are applied out-of-band against the **session pooler** connection. Locally:
 
 ```bash
 cp .env.example .env        # fill in DATABASE_URL_DIRECT + the rest
@@ -113,8 +117,8 @@ file. The list of files to apply lives in `server/migrate.js`.
 ## Backups
 
 Supabase takes automatic daily backups (retention depends on plan); restore from
-**Project → Database → Backups**. For an off-platform copy, `pg_dump` against the direct
-connection:
+**Project → Database → Backups**. For an off-platform copy, `pg_dump` against
+`DATABASE_URL_DIRECT` (the session pooler):
 
 ```bash
 pg_dump "$DATABASE_URL_DIRECT" | gzip > bombo-gym-$(date +%F).sql.gz

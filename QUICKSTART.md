@@ -26,8 +26,9 @@ http://localhost:3000/api/auth/callback/google
 Copy `.env.example` to `.env` and fill it in:
 
 ```
-DATABASE_URL=...            # Supabase connection string (direct is fine locally)
-DATABASE_URL_DIRECT=...     # Supabase direct connection (:5432) for migrations
+DATABASE_URL=...            # Supabase connection string (transaction pooler :6543)
+DATABASE_URL_DIRECT=...     # Supabase session pooler (:5432) for migrations — IPv4, unlike
+                            # the IPv6-only direct host (which fails on WSL2 etc.)
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 BETTER_AUTH_SECRET=...      # openssl rand -hex 32

@@ -26,7 +26,7 @@ Copy `.env.example` to `.env` for local dev; in production set the same keys as 
 
 ```
 DATABASE_URL=                      # Supabase Postgres — transaction pooler (:6543) in prod
-DATABASE_URL_DIRECT=               # Supabase direct (:5432) — used only by npm run db:migrate
+DATABASE_URL_DIRECT=               # Supabase session pooler (:5432) — used only by npm run db:migrate (IPv4; direct host is IPv6-only)
 
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
