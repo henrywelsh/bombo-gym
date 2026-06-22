@@ -4,7 +4,7 @@ import { authClient } from '../App'
 const links = [
   { to: '/',         label: 'Today',    icon: BoltIcon },
   { to: '/workouts', label: 'Workouts', icon: DumbbellIcon },
-  { to: '/board',    label: 'Board',    icon: ChartIcon },
+  { to: '/board',    label: 'Leaderboard', icon: ChartIcon },
 ]
 
 function signOut() {

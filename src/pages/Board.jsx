@@ -4,7 +4,11 @@ import {
 } from 'recharts'
 import { getBoard } from '../lib/programQueries'
 
-const COLORS = ['#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#a855f7', '#14b8a6']
+// Stable per-user palette.
+const COLORS = [
+  '#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#a855f7',
+  '#14b8a6', '#ef4444', '#eab308', '#8b5cf6', '#06b6d4',
+]
 const today = () => new Date().toISOString().slice(0, 10)
 
 export default function Board() {
@@ -19,18 +23,23 @@ export default function Board() {
   if (!board) return <Spinner />
 
   const { exercises, users } = board
+  const colorOf = Object.fromEntries(users.map((u, i) => [u.user_id, COLORS[i % COLORS.length]]))
 
-  // One row per user; each exercise is a series keyed by its name.
-  const chartData = users.map(u => {
-    const row = { name: u.name || 'Anonymous' }
-    for (const ex of exercises) row[ex.name] = u.counts[ex.id] ?? 0
+  // One row per exercise; each user is a colored series.
+  const chartData = exercises.map(ex => {
+    const row = { name: ex.name }
+    for (const u of users) row[u.user_id] = u.counts[ex.id] ?? 0
     return row
   })
+
+  const avgPct = u =>
+    exercises.length ? exercises.reduce((s, ex) => s + (u.completion?.[ex.id]?.pct ?? 0), 0) / exercises.length : 0
+  const ranked = [...users].sort((a, b) => avgPct(b) - avgPct(a))
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Daily Board</h1>
+        <h1 className="text-2xl font-bold text-white">Leaderboard</h1>
         <input
           type="date"
           value={date}
@@ -41,7 +50,7 @@ export default function Board() {
       </div>
 
       {users.length === 0 ? (
-        <p className="text-slate-400">Nobody has logged anything for this day yet.</p>
+        <p className="text-slate-400">Nobody has logged anything yet.</p>
       ) : (
         <>
           <div className="card">
@@ -55,32 +64,46 @@ export default function Board() {
                   labelStyle={{ color: '#e2e8f0' }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8', paddingTop: 8 }} />
-                {exercises.map((ex, i) => (
-                  <Bar key={ex.id} dataKey={ex.name} fill={COLORS[i % COLORS.length]} radius={[4, 4, 0, 0]} />
+                {users.map(u => (
+                  <Bar key={u.user_id} dataKey={u.user_id} name={u.name || 'Anonymous'}
+                    fill={colorOf[u.user_id]} radius={[4, 4, 0, 0]} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
             <p className="text-xs text-slate-500 mt-2">
-              Targets: {exercises.map(e => `${e.name} ${e.target}`).join(' · ')}
+              {date} · targets {exercises.map(e => `${e.name} ${e.target}`).join(' · ')}
             </p>
           </div>
 
-          {/* Per-exercise streaks */}
+          {/* Standings */}
           <div className="card">
-            <h2 className="font-semibold text-white mb-3">Streaks</h2>
+            <h2 className="font-semibold text-white mb-1">Standings</h2>
+            <p className="text-xs text-slate-500 mb-3">% of days completed since joining, per exercise</p>
             <ul className="divide-y divide-slate-700">
-              {users.map(u => (
-                <li key={u.user_id} className="flex items-center gap-3 py-2">
+              {ranked.map(u => (
+                <li key={u.user_id} className="flex items-start gap-3 py-3">
+                  <span className="w-3 h-3 rounded-full shrink-0 mt-1.5" style={{ background: colorOf[u.user_id] }} />
                   {u.image
                     ? <img src={u.image} alt="" className="w-8 h-8 rounded-full" />
                     : <div className="w-8 h-8 rounded-full bg-slate-600" />}
-                  <span className="flex-1 text-slate-200">{u.name || 'Anonymous'}</span>
-                  <div className="flex flex-wrap gap-2 justify-end">
-                    {exercises.map(ex => (
-                      <span key={ex.id} className="text-xs text-slate-400">
-                        {ex.name} <span className="text-amber-500 font-medium">🔥 {u.streaks?.[ex.id] ?? 0}</span>
-                      </span>
-                    ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-200 truncate">
+                      {u.name || 'Anonymous'}
+                      <span className="text-xs text-slate-500 font-normal"> · {u.daysSinceJoin} days tracked</span>
+                    </p>
+                    <div className="mt-1 space-y-1">
+                      {exercises.map(ex => {
+                        const c = u.completion?.[ex.id] ?? { days: 0, pct: 0 }
+                        return (
+                          <div key={ex.id} className="flex items-baseline gap-2 text-sm">
+                            <span className="text-slate-300 flex-1 min-w-0 truncate">{ex.name}</span>
+                            <span className="font-bold text-amber-500">{c.pct}%</span>
+                            <span className="text-xs text-slate-500">of days ({c.days}/{u.daysSinceJoin})</span>
+                            <span className="text-xs text-slate-400">🔥 {u.streaks?.[ex.id] ?? 0}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </li>
               ))}
