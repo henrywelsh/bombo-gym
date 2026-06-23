@@ -4,6 +4,7 @@ import {
   getMe, getDailyExercises, getTodayProgress, addReps, getBoard,
   addDailyExercise, updateDailyExercise, deleteDailyExercise,
 } from '../lib/programQueries'
+import { localDate } from '../lib/date'
 
 const QUICK_ADDS = [1, 5, 10]
 
@@ -17,11 +18,12 @@ export default function Today() {
   const [editing, setEditing]     = useState(false)
 
   async function load() {
+    const today = localDate()
     const [me, exs, prog, board] = await Promise.all([
       getMe(),
       getDailyExercises(),
-      getTodayProgress(),
-      getBoard(),
+      getTodayProgress(today),
+      getBoard(today),
     ])
     setIsAdmin(me.isAdmin)
     setExercises(exs)
@@ -33,7 +35,7 @@ export default function Today() {
   useEffect(() => { load() }, [user?.id])
 
   async function add(exerciseId, n) {
-    const row = await addReps(exerciseId, n)
+    const row = await addReps(exerciseId, n, localDate())
     setCounts(c => ({ ...c, [exerciseId]: row.count }))
   }
 

@@ -7,24 +7,25 @@ function isoDate(d) {
   return d.toISOString().slice(0, 10)
 }
 
-// Consecutive days (ending today, or yesterday if today isn't done yet) present in `days`.
-function streakFromDays(days) {
+// Consecutive days (ending `today`, or the day before if today isn't done yet)
+// present in `days`. `today` is the client's local date (YYYY-MM-DD) so the
+// streak rolls over at the user's midnight, not the server's UTC midnight.
+function streakFromDays(days, today) {
   if (!days || days.size === 0) return 0
-  const cursor = new Date()
-  if (!days.has(isoDate(cursor))) cursor.setDate(cursor.getDate() - 1)
+  const cursor = new Date(today)   // parsed as UTC midnight; arithmetic stays in UTC
+  if (!days.has(isoDate(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1)
   let streak = 0
   while (days.has(isoDate(cursor))) {
     streak++
-    cursor.setDate(cursor.getDate() - 1)
+    cursor.setUTCDate(cursor.getUTCDate() - 1)
   }
   return streak
 }
 
-// Whole-day count from a join date to today, inclusive (minimum 1).
-function daysSinceJoin(createdAt) {
-  const join  = new Date(isoDate(new Date(createdAt)))
-  const today = new Date(isoDate(new Date()))
-  return Math.max(1, Math.round((today - join) / 86400000) + 1)
+// Whole-day count from a join date to `today` (client's local date), inclusive (minimum 1).
+function daysSinceJoin(createdAt, today) {
+  const join = new Date(isoDate(new Date(createdAt)))
+  return Math.max(1, Math.round((new Date(today) - join) / 86400000) + 1)
 }
 
 // Leaderboard: per-day counts for the chart, plus per-exercise streaks and
@@ -72,11 +73,11 @@ router.get('/board', async (req, res) => {
   }
 
   const users = allUsers.map(u => {
-    const since = daysSinceJoin(u.createdAt)
+    const since = daysSinceJoin(u.createdAt, date)
     const streaks = {}
     const completion = {} // exercise_id -> { days, pct } since this user joined
     for (const ex of exercises) {
-      streaks[ex.id] = streakFromDays(hitDays[u.user_id]?.[ex.id])
+      streaks[ex.id] = streakFromDays(hitDays[u.user_id]?.[ex.id], date)
       const days = hitDays[u.user_id]?.[ex.id]?.size ?? 0
       completion[ex.id] = { days, pct: Math.min(100, Math.round((days / since) * 100)) }
     }

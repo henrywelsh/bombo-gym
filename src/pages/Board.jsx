@@ -3,13 +3,14 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { getBoard } from '../lib/programQueries'
+import { localDate } from '../lib/date'
 
 // Stable per-user palette.
 const COLORS = [
   '#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#a855f7',
   '#14b8a6', '#ef4444', '#eab308', '#8b5cf6', '#06b6d4',
 ]
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => localDate()
 
 export default function Board() {
   const [date, setDate]   = useState(today())

@@ -4,8 +4,9 @@ import {
   getExercises, addExercise, getPlans, createPlan, deletePlan,
   getSessions, createSession, deleteSession,
 } from '../lib/programQueries'
+import { localDate } from '../lib/date'
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => localDate()
 const KIND_LABEL = { single: 'Exercise', superset: 'Superset', circuit: 'Circuit' }
 const roundsLabel = kind => (kind === 'single' ? 'sets' : 'rounds')
 

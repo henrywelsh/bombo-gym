@@ -7,13 +7,14 @@ import {
   getMe, getBenchmarks, recordBenchmark, getExercises,
   addBenchmarkExercise, removeBenchmarkExercise,
 } from '../lib/programQueries'
+import { localMonth } from '../lib/date'
 
 const COLORS = [
   '#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#a855f7',
   '#14b8a6', '#ef4444', '#eab308', '#8b5cf6', '#06b6d4',
 ]
 const UNIT = { weight: 'lb', duration: 'sec', none: 'reps' }
-const thisMonth = () => new Date().toISOString().slice(0, 7)
+const thisMonth = () => localMonth()
 
 export default function Benchmarks() {
   const { user } = useAuth()
