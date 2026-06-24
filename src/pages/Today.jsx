@@ -7,6 +7,11 @@ import {
 import { localDate } from '../lib/date'
 
 const QUICK_ADDS = [1, 5, 10]
+const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] // index = JS getDay(): 0 = Sun … 6 = Sat
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6]
+
+const activeDaysOf = ex => (Array.isArray(ex.active_days) ? ex.active_days : ALL_DAYS)
+const isScheduledToday = ex => activeDaysOf(ex).includes(new Date().getDay())
 
 export default function Today() {
   const { user } = useAuth()
@@ -70,6 +75,11 @@ export default function Today() {
                   {streaks[ex.id] > 0 && (
                     <span className="text-xs text-amber-500" title={`${streaks[ex.id]}-day streak`}>
                       🔥 {streaks[ex.id]}
+                    </span>
+                  )}
+                  {!isScheduledToday(ex) && (
+                    <span className="text-xs text-slate-500" title="Not scheduled today — won't affect your streak">
+                      rest day
                     </span>
                   )}
                 </div>
@@ -138,9 +148,35 @@ function CustomAdd({ onAdd }) {
   )
 }
 
+function DayToggles({ value, onChange }) {
+  const set = new Set(value)
+  function toggle(d) {
+    const next = new Set(set)
+    next.has(d) ? next.delete(d) : next.add(d)
+    onChange([...next].sort((a, b) => a - b))
+  }
+  return (
+    <div className="flex gap-1">
+      {DAY_LABELS.map((label, d) => (
+        <button
+          key={d}
+          type="button"
+          onClick={() => toggle(d)}
+          className={`w-7 h-7 rounded-full text-xs font-medium transition-colors ${
+            set.has(d) ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function EditChallenge({ exercises, onChange }) {
   const [name, setName]     = useState('')
   const [target, setTarget] = useState('')
+  const [days, setDays]     = useState(ALL_DAYS)
   const [error, setError]   = useState('')
 
   async function create(e) {
@@ -149,8 +185,8 @@ function EditChallenge({ exercises, onChange }) {
     const t = parseInt(target, 10)
     if (!name.trim() || !(t > 0)) { setError('Enter a name and a positive target.'); return }
     try {
-      await addDailyExercise({ name: name.trim(), target: t })
-      setName(''); setTarget('')
+      await addDailyExercise({ name: name.trim(), target: t, active_days: days })
+      setName(''); setTarget(''); setDays(ALL_DAYS)
       onChange()
     } catch (err) {
       setError(err.message)
@@ -160,40 +196,55 @@ function EditChallenge({ exercises, onChange }) {
   return (
     <div className="card space-y-4">
       <h3 className="font-semibold text-white">Edit shared challenge</h3>
-      <p className="text-xs text-slate-400">Everyone shares this list — changes apply to all users.</p>
+      <p className="text-xs text-slate-400">
+        Everyone shares this list — changes apply to all users. Pick the days each exercise is
+        scheduled; unscheduled days don't break streaks.
+      </p>
 
       {exercises.map(ex => (
-        <div key={ex.id} className="flex items-center gap-2">
-          <span className="flex-1 text-slate-200">{ex.name}</span>
-          <input
-            type="number"
-            defaultValue={ex.target}
-            onBlur={e => {
-              const t = parseInt(e.target.value, 10)
-              if (t > 0 && t !== ex.target) updateDailyExercise(ex.id, { target: t }).then(onChange)
-            }}
-            className="input w-20 py-1 text-sm"
+        <div key={ex.id} className="space-y-2 pb-3 border-b border-slate-700/60">
+          <div className="flex items-center gap-2">
+            <span className="flex-1 text-slate-200">{ex.name}</span>
+            <input
+              type="number"
+              defaultValue={ex.target}
+              onBlur={e => {
+                const t = parseInt(e.target.value, 10)
+                if (t > 0 && t !== ex.target) updateDailyExercise(ex.id, { target: t }).then(onChange)
+              }}
+              className="input w-20 py-1 text-sm"
+            />
+            <span className="text-xs text-slate-400 w-10">{ex.unit}</span>
+            <button
+              onClick={() => deleteDailyExercise(ex.id).then(onChange)}
+              className="text-sm text-red-400 hover:text-red-300 px-2"
+            >
+              remove
+            </button>
+          </div>
+          <DayToggles
+            value={activeDaysOf(ex)}
+            onChange={next => updateDailyExercise(ex.id, { active_days: next }).then(onChange)}
           />
-          <span className="text-xs text-slate-400 w-10">{ex.unit}</span>
-          <button
-            onClick={() => deleteDailyExercise(ex.id).then(onChange)}
-            className="text-sm text-red-400 hover:text-red-300 px-2"
-          >
-            remove
-          </button>
         </div>
       ))}
 
-      <form onSubmit={create} className="flex flex-wrap items-end gap-2 pt-2 border-t border-slate-700">
-        <div>
-          <label className="label">Exercise</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Squats" className="input w-40" />
+      <form onSubmit={create} className="space-y-2 pt-2">
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="label">Exercise</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Squats" className="input w-40" />
+          </div>
+          <div>
+            <label className="label">Daily target</label>
+            <input type="number" value={target} onChange={e => setTarget(e.target.value)} placeholder="50" className="input w-24" />
+          </div>
+          <button type="submit" className="btn-primary text-sm">Add</button>
         </div>
         <div>
-          <label className="label">Daily target</label>
-          <input type="number" value={target} onChange={e => setTarget(e.target.value)} placeholder="50" className="input w-24" />
+          <label className="label">Scheduled days</label>
+          <DayToggles value={days} onChange={setDays} />
         </div>
-        <button type="submit" className="btn-primary text-sm">Add</button>
       </form>
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>

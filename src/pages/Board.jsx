@@ -33,9 +33,7 @@ export default function Board() {
     return row
   })
 
-  const avgPct = u =>
-    exercises.length ? exercises.reduce((s, ex) => s + (u.completion?.[ex.id]?.pct ?? 0), 0) / exercises.length : 0
-  const ranked = [...users].sort((a, b) => avgPct(b) - avgPct(a))
+  const ranked = [...users].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 
   return (
     <div className="space-y-6">
@@ -79,7 +77,7 @@ export default function Board() {
           {/* Standings */}
           <div className="card">
             <h2 className="font-semibold text-white mb-1">Standings</h2>
-            <p className="text-xs text-slate-500 mb-3">% of days completed since joining, per exercise</p>
+            <p className="text-xs text-slate-500 mb-3">Current streak per exercise</p>
             <ul className="divide-y divide-slate-700">
               {ranked.map(u => (
                 <li key={u.user_id} className="flex items-start gap-3 py-3">
@@ -88,22 +86,14 @@ export default function Board() {
                     ? <img src={u.image} alt="" className="w-8 h-8 rounded-full" />
                     : <div className="w-8 h-8 rounded-full bg-slate-600" />}
                   <div className="flex-1 min-w-0">
-                    <p className="text-slate-200 truncate">
-                      {u.name || 'Anonymous'}
-                      <span className="text-xs text-slate-500 font-normal"> · {u.daysSinceJoin} days tracked</span>
-                    </p>
+                    <p className="text-slate-200 truncate">{u.name || 'Anonymous'}</p>
                     <div className="mt-1 space-y-1">
-                      {exercises.map(ex => {
-                        const c = u.completion?.[ex.id] ?? { days: 0, pct: 0 }
-                        return (
-                          <div key={ex.id} className="flex items-baseline gap-2 text-sm">
-                            <span className="text-slate-300 flex-1 min-w-0 truncate">{ex.name}</span>
-                            <span className="font-bold text-amber-500">{c.pct}%</span>
-                            <span className="text-xs text-slate-500">of days ({c.days}/{u.daysSinceJoin})</span>
-                            <span className="text-xs text-slate-400">🔥 {u.streaks?.[ex.id] ?? 0}</span>
-                          </div>
-                        )
-                      })}
+                      {exercises.map(ex => (
+                        <div key={ex.id} className="flex items-baseline gap-2 text-sm">
+                          <span className="text-slate-300 flex-1 min-w-0 truncate">{ex.name}</span>
+                          <span className="text-xs text-slate-400">🔥 {u.streaks?.[ex.id] ?? 0}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </li>

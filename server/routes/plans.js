@@ -34,17 +34,45 @@ router.get('/plans', async (req, res) => {
   res.json(rows)
 })
 
-router.post('/plans', async (req, res) => {
-  const { name, notes, groups } = req.body
-  if (!name?.trim()) return res.status(400).json({ error: 'A plan needs a name' })
-  if (!Array.isArray(groups) || groups.length === 0) {
-    return res.status(400).json({ error: 'A plan needs at least one group' })
-  }
+// Reject a malformed plan body; returns an error message or null if valid.
+function validatePlan({ name, groups }) {
+  if (!name?.trim()) return 'A plan needs a name'
+  if (!Array.isArray(groups) || groups.length === 0) return 'A plan needs at least one group'
   for (const g of groups) {
     if (!Array.isArray(g.exercises) || g.exercises.length === 0) {
-      return res.status(400).json({ error: 'Each group needs at least one exercise' })
+      return 'Each group needs at least one exercise'
     }
   }
+  return null
+}
+
+// Insert a plan's groups + nested exercises (shared by create and update).
+async function insertGroups(client, planId, groups) {
+  for (const [gi, g] of groups.entries()) {
+    const kind = ['single', 'superset', 'circuit'].includes(g.kind) ? g.kind : 'single'
+    const rounds = Number.isInteger(g.rounds) && g.rounds > 0 ? g.rounds : 1
+    const { rows: [grp] } = await client.query(
+      `INSERT INTO workout_plan_groups (plan_id, kind, rounds, sort_order)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [planId, kind, rounds, gi]
+    )
+    for (const [ei, ex] of g.exercises.entries()) {
+      if (!ex.exercise_id) throw Object.assign(new Error('exercise_id is required'), { status: 400 })
+      await client.query(
+        `INSERT INTO workout_plan_exercises
+           (group_id, exercise_id, target_reps, target_weight_lbs, target_duration_sec, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [grp.id, ex.exercise_id, ex.target_reps ?? null, ex.target_weight_lbs ?? null,
+         ex.target_duration_sec ?? null, ei]
+      )
+    }
+  }
+}
+
+router.post('/plans', async (req, res) => {
+  const { name, notes, groups } = req.body
+  const invalid = validatePlan({ name, groups })
+  if (invalid) return res.status(400).json({ error: invalid })
 
   const client = await pool.connect()
   try {
@@ -53,27 +81,37 @@ router.post('/plans', async (req, res) => {
       `INSERT INTO workout_plans (user_id, name, notes) VALUES ($1, $2, $3) RETURNING id`,
       [req.userId, name.trim(), notes?.trim() || null]
     )
+    await insertGroups(client, plan.id, groups)
+    await client.query('COMMIT')
+    res.json({ id: plan.id })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    res.status(err.status || 500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
+})
 
-    for (const [gi, g] of groups.entries()) {
-      const kind = ['single', 'superset', 'circuit'].includes(g.kind) ? g.kind : 'single'
-      const rounds = Number.isInteger(g.rounds) && g.rounds > 0 ? g.rounds : 1
-      const { rows: [grp] } = await client.query(
-        `INSERT INTO workout_plan_groups (plan_id, kind, rounds, sort_order)
-         VALUES ($1, $2, $3, $4) RETURNING id`,
-        [plan.id, kind, rounds, gi]
-      )
-      for (const [ei, ex] of g.exercises.entries()) {
-        if (!ex.exercise_id) throw Object.assign(new Error('exercise_id is required'), { status: 400 })
-        await client.query(
-          `INSERT INTO workout_plan_exercises
-             (group_id, exercise_id, target_reps, target_weight_lbs, target_duration_sec, sort_order)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [grp.id, ex.exercise_id, ex.target_reps ?? null, ex.target_weight_lbs ?? null,
-           ex.target_duration_sec ?? null, ei]
-        )
-      }
+// Replace a plan's name/notes and its full set of groups + exercises.
+router.put('/plans/:id', async (req, res) => {
+  const { name, notes, groups } = req.body
+  const invalid = validatePlan({ name, groups })
+  if (invalid) return res.status(400).json({ error: invalid })
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const { rows: [plan] } = await client.query(
+      `UPDATE workout_plans SET name = $1, notes = $2
+       WHERE id = $3 AND user_id = $4 RETURNING id`,
+      [name.trim(), notes?.trim() || null, req.params.id, req.userId]
+    )
+    if (!plan) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Not found' })
     }
-
+    await client.query(`DELETE FROM workout_plan_groups WHERE plan_id = $1`, [plan.id])
+    await insertGroups(client, plan.id, groups)
     await client.query('COMMIT')
     res.json({ id: plan.id })
   } catch (err) {

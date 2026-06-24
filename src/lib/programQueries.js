@@ -12,8 +12,8 @@ export async function getDailyExercises() {
   return api.get('/api/daily-exercises')
 }
 
-export async function addDailyExercise({ name, target, unit }) {
-  return api.post('/api/daily-exercises', { name, target, unit })
+export async function addDailyExercise({ name, target, unit, active_days }) {
+  return api.post('/api/daily-exercises', { name, target, unit, active_days })
 }
 
 export async function updateDailyExercise(id, updates) {
@@ -59,6 +59,10 @@ export async function getPlans() {
 
 export async function createPlan(plan) {
   return api.post('/api/plans', plan)
+}
+
+export async function updatePlan(id, plan) {
+  return api.put(`/api/plans/${id}`, plan)
 }
 
 export async function deletePlan(id) {

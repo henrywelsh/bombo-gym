@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../App'
 import {
-  getExercises, addExercise, getPlans, createPlan, deletePlan,
+  getExercises, addExercise, getPlans, createPlan, updatePlan, deletePlan,
   getSessions, createSession, deleteSession,
 } from '../lib/programQueries'
 import { localDate } from '../lib/date'
@@ -20,6 +20,7 @@ export default function Workouts() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading]   = useState(true)
   const [recording, setRecording] = useState(null) // a plan object being performed
+  const [editing, setEditing]     = useState(null) // a plan object being edited
 
   async function load() {
     const [cat, pl, ses] = await Promise.all([getExercises(), getPlans(), getSessions()])
@@ -54,7 +55,13 @@ export default function Workouts() {
 
       <Catalog catalog={catalog} onNewExercise={onNewExercise} />
 
-      <PlanBuilder catalog={catalog} onSaved={load} />
+      <PlanBuilder
+        key={editing?.id ?? 'new'}
+        catalog={catalog}
+        editing={editing}
+        onCancelEdit={() => setEditing(null)}
+        onSaved={async () => { setEditing(null); await load() }}
+      />
 
       {/* Plans */}
       <section className="space-y-3">
@@ -71,6 +78,8 @@ export default function Workouts() {
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setRecording(p)} className="btn-primary text-sm">Start</button>
+                <button onClick={() => { setEditing(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                  className="text-sm text-slate-400 hover:text-slate-200">edit</button>
                 <button onClick={async () => { if (confirm('Delete plan?')) { await deletePlan(p.id); load() } }}
                   className="text-sm text-red-400 hover:text-red-300">delete</button>
               </div>
@@ -106,9 +115,25 @@ export default function Workouts() {
 
 const emptyRow = () => ({ exercise_id: '', target_reps: '', target_weight_lbs: '', target_duration_sec: '' })
 
-function PlanBuilder({ catalog, onSaved }) {
-  const [name, setName]     = useState('')
-  const [groups, setGroups] = useState([])
+const str = v => (v == null ? '' : String(v))
+
+// Rehydrate a saved plan into the builder's editable (string-valued) shape.
+function groupsFromPlan(plan) {
+  return plan.groups.map(g => ({
+    kind: g.kind,
+    rounds: g.rounds,
+    exercises: g.exercises.map(e => ({
+      exercise_id: e.exercise_id,
+      target_reps: str(e.target_reps),
+      target_weight_lbs: str(e.target_weight_lbs),
+      target_duration_sec: str(e.target_duration_sec),
+    })),
+  }))
+}
+
+function PlanBuilder({ catalog, editing, onCancelEdit, onSaved }) {
+  const [name, setName]     = useState(editing?.name ?? '')
+  const [groups, setGroups] = useState(() => (editing ? groupsFromPlan(editing) : []))
   const [error, setError]   = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -144,14 +169,17 @@ function PlanBuilder({ catalog, onSaved }) {
       })),
     }
     setSaving(true)
-    try { await createPlan(payload); reset(); await onSaved() }
+    try {
+      if (editing) { await updatePlan(editing.id, payload); await onSaved() }
+      else { await createPlan(payload); reset(); await onSaved() }
+    }
     catch (err) { setError(err.message) }
     finally { setSaving(false) }
   }
 
   return (
     <div className="card space-y-4">
-      <h2 className="text-lg font-semibold text-white">New plan</h2>
+      <h2 className="text-lg font-semibold text-white">{editing ? `Edit plan` : 'New plan'}</h2>
 
       <div>
         <label className="label">Plan name</label>
@@ -205,10 +233,14 @@ function PlanBuilder({ catalog, onSaved }) {
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      {groups.length > 0 && (
+      {(groups.length > 0 || editing) && (
         <div className="flex gap-2">
-          <button onClick={save} disabled={saving} className="btn-primary text-sm">{saving ? 'Saving…' : 'Save plan'}</button>
-          <button onClick={reset} className="btn-secondary text-sm">Clear</button>
+          <button onClick={save} disabled={saving} className="btn-primary text-sm">
+            {saving ? 'Saving…' : editing ? 'Save changes' : 'Save plan'}
+          </button>
+          {editing
+            ? <button onClick={onCancelEdit} className="btn-secondary text-sm">Cancel</button>
+            : <button onClick={reset} className="btn-secondary text-sm">Clear</button>}
         </div>
       )}
     </div>

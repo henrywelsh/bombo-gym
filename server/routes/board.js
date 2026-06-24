@@ -7,40 +7,46 @@ function isoDate(d) {
   return d.toISOString().slice(0, 10)
 }
 
-// Consecutive days (ending `today`, or the day before if today isn't done yet)
-// present in `days`. `today` is the client's local date (YYYY-MM-DD) so the
-// streak rolls over at the user's midnight, not the server's UTC midnight.
-function streakFromDays(days, today) {
+// Consecutive scheduled days (ending `today`, or the day before if today isn't
+// done yet) present in `days`. `today` is the client's local date (YYYY-MM-DD)
+// so the streak rolls over at the user's midnight, not the server's UTC midnight.
+// `activeDays` are the weekdays the exercise is scheduled on (0 = Sunday … 6 =
+// Saturday); off-days are skipped — they neither count toward nor break a streak.
+function streakFromDays(days, today, activeDays) {
   if (!days || days.size === 0) return 0
+  const active = new Set(activeDays)
+  if (active.size === 0) return 0
   const cursor = new Date(today)   // parsed as UTC midnight; arithmetic stays in UTC
-  if (!days.has(isoDate(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1)
+  // Today still in progress: if it's a scheduled day not yet hit, start from yesterday.
+  if (active.has(cursor.getUTCDay()) && !days.has(isoDate(cursor))) {
+    cursor.setUTCDate(cursor.getUTCDate() - 1)
+  }
   let streak = 0
-  while (days.has(isoDate(cursor))) {
+  while (true) {
+    if (!active.has(cursor.getUTCDay())) {   // off-day: skip without breaking the streak
+      cursor.setUTCDate(cursor.getUTCDate() - 1)
+      continue
+    }
+    if (!days.has(isoDate(cursor))) break    // scheduled day missed: streak ends
     streak++
     cursor.setUTCDate(cursor.getUTCDate() - 1)
   }
   return streak
 }
 
-// Whole-day count from a join date to `today` (client's local date), inclusive (minimum 1).
-function daysSinceJoin(createdAt, today) {
-  const join = new Date(isoDate(new Date(createdAt)))
-  return Math.max(1, Math.round((new Date(today) - join) / 86400000) + 1)
-}
-
-// Leaderboard: per-day counts for the chart, plus per-exercise streaks and
-// since-you-joined completion stats for every user who has ever participated.
+// Leaderboard: per-day counts for the chart, plus per-exercise streaks for
+// every user who has ever participated.
 router.get('/board', async (req, res) => {
   const date = req.query.date || isoDate(new Date())
 
   // Shared challenge definition.
   const { rows: exercises } = await pool.query(
-    `SELECT id, name, target, unit FROM daily_exercises ORDER BY sort_order, name`
+    `SELECT id, name, target, unit, active_days FROM daily_exercises ORDER BY sort_order, name`
   )
 
-  // Everyone who has ever logged progress (with join date for completion %).
+  // Everyone who has ever logged progress.
   const { rows: allUsers } = await pool.query(`
-    SELECT u.id AS user_id, u.name, u.image, u."createdAt"
+    SELECT u.id AS user_id, u.name, u.image
     FROM "user" u
     WHERE EXISTS (SELECT 1 FROM daily_progress dp WHERE dp.user_id = u.id)
     ORDER BY u.name
@@ -59,7 +65,7 @@ router.get('/board', async (req, res) => {
     WHERE dp.count >= de.target
   `)
 
-  // user -> exercise -> Set<date> a target was hit (drives streaks and completion %).
+  // user -> exercise -> Set<date> a target was hit (drives the per-exercise streaks).
   const hitDays = {}
   for (const r of hitRows) {
     const day = isoDate(new Date(r.logged_date))
@@ -73,13 +79,9 @@ router.get('/board', async (req, res) => {
   }
 
   const users = allUsers.map(u => {
-    const since = daysSinceJoin(u.createdAt, date)
     const streaks = {}
-    const completion = {} // exercise_id -> { days, pct } since this user joined
     for (const ex of exercises) {
-      streaks[ex.id] = streakFromDays(hitDays[u.user_id]?.[ex.id], date)
-      const days = hitDays[u.user_id]?.[ex.id]?.size ?? 0
-      completion[ex.id] = { days, pct: Math.min(100, Math.round((days / since) * 100)) }
+      streaks[ex.id] = streakFromDays(hitDays[u.user_id]?.[ex.id], date, ex.active_days)
     }
     return {
       user_id: u.user_id,
@@ -87,8 +89,6 @@ router.get('/board', async (req, res) => {
       image: u.image,
       counts: countsByUser[u.user_id] || {},
       streaks,
-      completion,
-      daysSinceJoin: since,
     }
   })
 
