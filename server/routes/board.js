@@ -44,13 +44,16 @@ router.get('/board', async (req, res) => {
     `SELECT id, name, target, unit, active_days FROM daily_exercises ORDER BY sort_order, name`
   )
 
-  // Everyone who has ever logged progress.
+  // Only users who logged reps on the selected day.
   const { rows: allUsers } = await pool.query(`
     SELECT u.id AS user_id, u.name, u.image
     FROM "user" u
-    WHERE EXISTS (SELECT 1 FROM daily_progress dp WHERE dp.user_id = u.id)
+    WHERE EXISTS (
+      SELECT 1 FROM daily_progress dp
+      WHERE dp.user_id = u.id AND dp.logged_date = $1 AND dp.count > 0
+    )
     ORDER BY u.name
-  `)
+  `, [date])
 
   // Counts for the selected day (for the chart).
   const { rows: progress } = await pool.query(`
