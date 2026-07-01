@@ -28,7 +28,7 @@ router.post('/daily-exercises', requireAdmin, async (req, res) => {
   }
   const { rows } = await pool.query(`
     INSERT INTO daily_exercises (name, target, unit, sort_order, active_days)
-    VALUES ($1, $2, COALESCE($3, 'reps'), COALESCE($4, 0), COALESCE($5, '{0,1,2,3,4,5,6}'))
+    VALUES ($1, $2, COALESCE($3, 'reps'), COALESCE($4, 0), COALESCE($5::int[], '{0,1,2,3,4,5,6}'::int[]))
     ON CONFLICT (name) DO NOTHING
     RETURNING *
   `, [name.trim(), target, unit ?? null, sort_order ?? null, sanitizeDays(active_days)])
